@@ -1,6 +1,7 @@
-questions to ask the prof about:
-- what does concurrent access mean? as in two client and concurrenlty read/write the same file? or that two client can only concurrently access different files
-- depending on the previous question, what semantics should we adapt? is there a restriction on that?
-- remote access vs download/upload
-- how much local cache do we want?
-- what happens when a client attempts to write a file that is currently being access?
+server architecture:
+- remote-access mode, unix semantics, centralized entry consistency
+- mount/unmount registers and de-registers a client
+- open/close directory lock and unlocks a read lock on directory
+- open/close file lock and unlock a mutex on a file
+- a client can only read/write once it obtain mutex on a file, otherwise it waits
+- a client can only delete a file/folder once it obtain write lock on the folder/file

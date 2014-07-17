@@ -60,15 +60,7 @@ int main(int argc, void* argv[])
 
     //launch server
 
-    //receive calls from client
-    //  mount -> register client, browse and send over files/folders
-    //  unmount -> de-register client
-    //  fsOpenDir -> read lock on that folder
-    //  fsCloseDir -> unlock folder
-    //  fsReadDir -> return next entry if client obtained read lock
-    //  fsOpen -> aquire read/write locks
-    //  fsRead/Write -> read/write
-
+    //receive calls from client and send back response accordingly
 
     return 0;
 }

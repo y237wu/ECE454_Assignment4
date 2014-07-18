@@ -1,13 +1,17 @@
 OBJECTS := $(patsubst %.c,%.o,$(wildcard *.c))
+INCLUDES := $(wildcard *.h)
 
 all: fs_client fs_server
 
 fs_client: fs_client.o fs_dummy.o
 
-fs_server: fs_server.o
-	gcc fs_server.o -o fsServer 
+fs_server: fs_server.o simplified_rpc_lib
+	gcc fs_server.o -L./simplified_rpc -lstubs -o Server 
 
-$(OBJECTS): %.o: %.c ece454_fs.h
+simplified_rpc_lib:
+	cd simplified_rpc && $(MAKE) all
+
+$(OBJECTS): %.o: %.c $(INCLUDES)
 	gcc -c $< -o $@
 
 clean:

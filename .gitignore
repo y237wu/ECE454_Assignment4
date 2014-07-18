@@ -1,0 +1,8 @@
+# ignore the build folder
+build/
+# ignore any .out files
+*.out
+*.txt
+*.exe
+*.o
+*.a

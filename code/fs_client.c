@@ -33,13 +33,16 @@ void printBuf(char *buf, int size) {
 int main(int argc, char *argv[]) {
     char *dirname = NULL;
 
-    if(argc > 1) dirname = argv[1];
-    else {
-	dirname = (char *)calloc(strlen(".")+1, sizeof(char));
-	strcpy(dirname, ".");
+    if( argc != 3 ) {
+        printf("fs_clinet <ip> <port>\n");
+        return -1;
     }
 
+
+
     printf("fsMount(): %d\n", fsMount(NULL, 0, dirname));
+
+    /*
     FSDIR *fd = fsOpenDir(dirname);
     if(fd == NULL) {
 	perror("fsOpenDir"); exit(1);
@@ -98,6 +101,7 @@ int main(int argc, char *argv[]) {
     }
 
     printf("fsRemove(%s): %d\n", fname, fsRemove(fname));
+    */
 
     return 0;
 }

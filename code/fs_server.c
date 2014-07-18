@@ -4,6 +4,36 @@
 #include <errno.h>
 #include <dirent.h>
 #include <limits.h>
+#include <stdarg.h>
+
+#include "simplified_rpc/ece454rpc_types.h"
+
+return_type ret;
+
+//int fsMount( const char* localFolderName );
+return_type fsMount(const int nparams, arg_type* argList)
+{
+    const char* localFolderName;
+    //sockaddr_in clientAddr;
+
+    if( nparams != 1 ) {
+        ret.return_val = NULL;
+        ret.return_size = 0;
+        return ret;
+    }
+
+    localFolderName = (const char*) argList->arg_val;
+    //clientAddr = *( (sockaddr_in*) argList->next->arg_value );
+
+    printf("local folder name: %s\n", localFolderName);
+    //printf("client address: %s:%u\n", inet_ntoa(clientAddr.sin_addr), ntohs(clientAddr.sin_port));
+
+    ret.return_size = sizeof(int);
+    ret.return_val = malloc( sizeof(int) );
+    *( (int*)ret.return_val ) = 0;
+
+    return ret;
+}
 
 void browse_dir(const char* dirName, int depth)
 {
@@ -50,15 +80,19 @@ int main(int argc, void* argv[])
 {
     //parse input
     if( argc != 2 ) {
-        printf("fsServer <host folder name>\n");
+        printf("Server <host folder name>\n");
         return -1;
     }
 
     char* folderName = (char*) argv[1];
 
+    //set up file system
     browse_dir( folderName, 0 );
 
+    register_procedure("fsMount", 2, fsMount);
+
     //launch server
+    launch_server();
 
     //receive calls from client and send back response accordingly
 

@@ -1,5 +1,13 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <ifaddrs.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netinet/ip.h>
+#include "ece454rpc_types.h"
 
 void print_dirType(unsigned char d_type)
 {
@@ -28,4 +36,3 @@ void print_dirType(unsigned char d_type)
             break;
     }
 }
-

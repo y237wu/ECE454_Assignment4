@@ -1,6 +1,10 @@
 # ignore the build folder
 build/
 # ignore any .out files
+Server
+fs_client
+sample_server_app
+sample_client_app
 *.out
 *.txt
 *.exe

@@ -1,15 +1,5 @@
-/* 
- * Mahesh V. Tripunitara
- * University of Waterloo
- * A dummy implementation of the functions for the remote file
- * system. This file just implements those functions as thin
- * wrappers around invocations to the local filesystem. In this
- * way, this dummy implementation helps clarify the semantics
- * of those functions. Look up the man pages for the calls
- * such as opendir() and read() that are made here.
- */
 #include "ece454_fs.h"
-#include "ece454rpc_type.h"
+#include "simplified_rpc/ece454rpc_types.h"
 
 #include <string.h>
 
@@ -30,8 +20,13 @@ int fsMount(const char *srvIpOrDomName,
                            1,
                            strlen(localFolderName) + 1,
                            localFolderName);
+    if( ret.return_size == 0 ) {
+        printf("mount error\n");
+        errno = 1;
+        return -1;
+    }
 
-    int retVal = *( (int*)ret.return_value );
+    int retVal = *( (int*)ret.return_val );
 
     if( retVal != 0 ) {
         printf("mount error\n");

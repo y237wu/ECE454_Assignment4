@@ -4,43 +4,17 @@
 
 #include "ece454_fs.h"
 
-void printBuf(char *buf, int size) {
-    /* Should match the output from od -x */
-    int i;
-    for(i = 0; i < size; ) {
-	if(i%16 == 0) {
-	    printf("%08o ", i);
-	}
-
-	int j;
-	for(j = 0; j < 16;) {
-	    int k;
-	    for(k = 0; k < 2; k++) {
-		if(i+j+(1-k) < size) {
-		    printf("%02x", (unsigned char)(buf[i+j+(1-k)]));
-		}
-	    }
-
-	    printf(" ");
-	    j += k;
-	}
-
-	printf("\n");
-	i += j;
-    }
-}
-
 int main(int argc, char *argv[]) {
-    char *dirname = NULL;
+    char *dirname = "localFolder";
 
     if( argc != 3 ) {
         printf("fs_clinet <ip> <port>\n");
         return -1;
     }
 
-
-
-    printf("fsMount(): %d\n", fsMount(NULL, 0, dirname));
+    printf("fsMount(): %d\n", fsMount( (const char*)argv[1],
+                                       atoi( (char *)argv[2]) ,
+                                       dirname));
 
     /*
     FSDIR *fd = fsOpenDir(dirname);

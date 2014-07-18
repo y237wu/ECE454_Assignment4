@@ -89,7 +89,7 @@ int main(int argc, void* argv[])
     //set up file system
     browse_dir( folderName, 0 );
 
-    register_procedure("fsMount", 2, fsMount);
+    register_procedure("fsMount", 1, fsMount);
 
     //launch server
     launch_server();

@@ -92,13 +92,6 @@ void appendFolderLock(struct folderLock* newItem)
     }
 
     (*ptr)->next = newItem;
-
-    printf("after appendFoldereLock\n");
-    struct folderLock* fPtr = folderLocks;
-    while( fPtr!= NULL ) {
-        printf("dir=%d\n", fPtr->dir);
-        fPtr = fPtr->next;
-    }
 }
 
 void removeFolderLock(struct folderLock* removeItem)
@@ -138,13 +131,6 @@ void appendFileLock(struct fileLock* newItem)
     }
 
     (*ptr)->next = newItem;
-
-    printf("after appendFileLock\n");
-    struct fileLock* fPtr = fileLocks;
-    while( fPtr!= NULL ) {
-        printf("fd=%d\n", fPtr->fd);
-        fPtr = fPtr->next;
-    }
 }
 
 void removeFileLock(struct fileLock* removeItem)
@@ -227,8 +213,6 @@ return_type rpc_fsMount(const int nparams, arg_type* argList)
         sessionPtr = sessionPtr->next;
     }
 
-    printf("sessionId %d local folder name: %s\n", g_sessionId, clientFolderName);
-
     sessionPtr = malloc(sizeof(struct mountSession));
     sessionPtr->clientFolderName = malloc(strlen(clientFolderName)+1);
     strcpy(sessionPtr->clientFolderName, clientFolderName);
@@ -301,7 +285,6 @@ return_type rpc_fsOpenDir(const int nparams, arg_type* argList)
     //open server directory and return DIR
     const char* serverFolder = replaceClientLocalFolder(requestDir,
                                                     sessionPtr);
-    printf("serverFolder: %s\n", serverFolder);
     //lock the opened folder
     struct folderLock* lockPtr = folderLocks;
 
@@ -509,7 +492,6 @@ return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
     //open server directory and return DIR
     char* serverFile = replaceClientLocalFolder(requestFile, sessionPtr);
 
-    printf("fsOpenFile serverFile %s\n", serverFile);
     //check if the file is locked or not
     struct fileLock* lockPtr = fileLocks;
     int fd = -1;
@@ -764,8 +746,6 @@ return_type rpc_fsWrite(const int nparams, arg_type* argList)
     }
 
     int writeSuccess = write( requestFile, writeBuffer, writeCount );
-    printf("writeSuccess %d requestFile: %d writeCount %d\n", writeSuccess, requestFile, writeCount);
-
     if( writeSuccess == -1 ) {
         ret.return_val = malloc(sizeof(int));
         ret.return_size = sizeof(int);

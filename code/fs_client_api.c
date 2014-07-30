@@ -284,17 +284,9 @@ FSDIR* fsOpenDir(const char *folderName) {
     struct fsDirList* fsDirPtr = malloc( sizeof(struct fsDirList) );
     fsDirPtr->value = retVal;
     fsDirPtr->next = NULL;
-    printf("session id: %d\n", sessionPtr->sessionId);
     appendDir( &(sessionPtr->fsDirs), fsDirPtr );
 
     fsDirPtr = sessionPtr->fsDirs;
-	/*
-    printf("fsOpenDir print dir list:\n");
-    while( fsDirPtr != NULL ) {
-        printf("dir: %d\n", fsDirPtr->value);
-        fsDirPtr = fsDirPtr->next;
-    }
-	*/
 
     return retVal;
 }
@@ -360,11 +352,6 @@ int fsCloseDir(FSDIR *folder) {
     free(fsDirPtr);
 
     fsDirPtr = sessionPtr->fsDirs;
-    printf("fsCloseDir print dir list:\n");
-    while( fsDirPtr != NULL ) {
-        printf("dir: %d\n", fsDirPtr->value);
-        fsDirPtr = fsDirPtr->next;
-    }
 
     return 0;
 }
@@ -510,11 +497,6 @@ int fsOpen(const char *fname, int mode) {
     appendFile(&sessionPtr->files, filePtr);
 
     filePtr = sessionPtr->files;
-    printf("fsOpenFile print file list:\n");
-    while( filePtr != NULL ) {
-        printf("fd: %d\n", filePtr->fd);
-        filePtr = filePtr->next;
-    }
 
     return retVal;
 }
@@ -573,11 +555,6 @@ int fsClose(int fd) {
     free(filePtr);
 
     filePtr = sessionPtr->files;
-    printf("fsCloseFile print file list:\n");
-    while( filePtr != NULL ) {
-        printf("fd: %d\n", filePtr->fd);
-        filePtr = filePtr->next;
-    }
 
     return 0;
 }

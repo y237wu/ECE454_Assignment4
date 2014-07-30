@@ -3,6 +3,7 @@ build/
 # ignore any .out files
 Server
 fs_client
+fs_client2
 sample_server_app
 sample_client_app
 *.out

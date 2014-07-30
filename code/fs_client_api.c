@@ -170,6 +170,9 @@ int fsMount(const char *srvIpOrDomName,
     sessionPtr->serverIp = srvIpOrDomName;
     sessionPtr->serverPort = srvPort;
     sessionPtr->localFolderName = localFolderName;
+
+    sessionPtr->fsDirs = NULL;
+    sessionPtr->files = NULL;
     sessionPtr->next = NULL;
 
     sessionPtr->sessionId = *( (int*) ret.return_val );
@@ -264,7 +267,8 @@ FSDIR* fsOpenDir(const char *folderName) {
     struct fsDirList* fsDirPtr = malloc( sizeof(struct fsDirList) );
     fsDirPtr->value = retVal;
     fsDirPtr->next = NULL;
-    appendDir( &sessionPtr->fsDirs, fsDirPtr );
+    printf("session id: %d\n", sessionPtr->sessionId);
+    appendDir( &(sessionPtr->fsDirs), fsDirPtr );
 
     fsDirPtr = sessionPtr->fsDirs;
     printf("fsOpenDir print dir list:\n");
@@ -420,7 +424,7 @@ int fsOpen(const char *fname, int mode) {
 
     while( sessionPtr != NULL ) {
         if( strncmp(sessionPtr->localFolderName, fname,
-                    sizeof(sessionPtr->localFolderName) ) == 0 ) {
+                    strlen(sessionPtr->localFolderName) ) == 0 ) {
             break;
         }
         sessionPtr = sessionPtr->next;

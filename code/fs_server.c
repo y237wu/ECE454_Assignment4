@@ -92,6 +92,13 @@ void appendFolderLock(struct folderLock* newItem)
     }
 
     (*ptr)->next = newItem;
+
+    printf("after appendFoldereLock\n");
+    struct folderLock* fPtr = folderLocks;
+    while( fPtr!= NULL ) {
+        printf("dir=%d\n", fPtr->dir);
+        fPtr = fPtr->next;
+    }
 }
 
 void removeFolderLock(struct folderLock* removeItem)
@@ -131,6 +138,13 @@ void appendFileLock(struct fileLock* newItem)
     }
 
     (*ptr)->next = newItem;
+
+    printf("after appendFileLock\n");
+    struct fileLock* fPtr = fileLocks;
+    while( fPtr!= NULL ) {
+        printf("fd=%d\n", fPtr->fd);
+        fPtr = fPtr->next;
+    }
 }
 
 void removeFileLock(struct fileLock* removeItem)
@@ -294,7 +308,7 @@ return_type rpc_fsOpenDir(const int nparams, arg_type* argList)
     //by the session
     bool opened = false;
     while( lockPtr != NULL ) {
-        if( lockPtr->sessionId = sessionPtr->sessionId &&
+        if( lockPtr->sessionId == sessionPtr->sessionId &&
                 strcmp(lockPtr->dname, serverFolder) == 0 ) {
             opened = true;
             break;
@@ -352,7 +366,6 @@ return_type rpc_fsCloseDir(const int nparams, arg_type* argList)
 
     //find the opened folder
     struct folderLock* lockPtr = folderLocks;
-
     while( lockPtr != NULL ) {
         if( lockPtr->sessionId == sessionPtr->sessionId &&
                 lockPtr->dir == requestDir ) {
@@ -369,19 +382,29 @@ return_type rpc_fsCloseDir(const int nparams, arg_type* argList)
         return ret;
     }
 
-    //close directory and remove folder lock
-    int closeDirRet =  closedir(requestDir);
-
     //discard lock even if closedir failed because the dir* itself is wrong
-	removeFolderLock(lockPtr);
+    removeFolderLock(lockPtr);
     free(lockPtr);
 
-    //close dir failed and we want to return errorno
-    //we will think about this later
-    if( closeDirRet != 0 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
-        return ret;
+    //see if other sessions still has the same file opened
+    lockPtr = folderLocks;
+    while( lockPtr != NULL ) {
+        if( lockPtr->dir == requestDir ) {
+            break;
+        }
+        lockPtr = lockPtr->next;
+    }
+
+    if( lockPtr == NULL ) {
+        //close directory
+        int closeDirRet =  closedir(requestDir);
+        //close dir failed and we want to return errorno
+        //we will think about this later
+        if( closeDirRet != 0 ) {
+            ret.return_val = NULL;
+            ret.return_size = 0;
+            return ret;
+        }
     }
 
     //CONSTRUCT RETURN TYPE
@@ -433,16 +456,17 @@ return_type rpc_fsReadDir(const int nparams, arg_type* argList)
         return ret;
     }
 
-    //close directory and remove folder lock
+    //read directory
     int initErrno = errno;
     struct dirent* ent =  readdir(requestDir);
 
     if( ent == NULL  && errno == initErrno) {
+        //end of folder, returning null
         ret.return_size = sizeof( int );
         ret.return_val = malloc( sizeof(int) );
         memset( ret.return_val, 0, sizeof(int) );
     } else if( ent != NULL ) {
-        //CONSTRUCT RETURN TYPE
+        //return the directory entity
         ret.return_size = sizeof( struct dirent );
         ret.return_val = malloc( sizeof(struct dirent) );
         memcpy( ret.return_val, ent, sizeof(struct dirent) );
@@ -483,18 +507,37 @@ return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
     printf("fsOpenFile serverFile %s\n", serverFile);
     //check if the file is locked or not
     struct fileLock* lockPtr = fileLocks;
-    bool lockOk = false;
+    int fd = -1;
 
     while( lockPtr != NULL ) {
+        //a lock on the file exists
         if( strcmp(lockPtr->fname, serverFile) == 0 ) {
-            if( lockPtr->sessionId == clientSessionId
-                    && lockPtr->flags == flags ) {
+            if( lockPtr->sessionId == clientSessionId && lockPtr->flags == flags ) {
                 //file locked by client itself in the same mode
-                lockOk = true;
+                //not sure if this is valid or not, but let just do nothing
+                fd = lockPtr->fd;
             } else {
                 if( flags == O_RDONLY && lockPtr->flags == O_RDONLY ) {
-                    //file lock is aquired by another client in read mode
-                    lockOk = true;
+                    //file is aquired by another client in read mode
+                    //it is fine, simply add another lock to the same file
+                    //but not reopen the file
+                    fd = lockPtr->fd;
+
+                    lockPtr = malloc(sizeof(struct fileLock));
+                    lockPtr->sessionId = clientSessionId;
+                    lockPtr->fd = fd;
+                    lockPtr->flags = flags;
+                    strcpy(lockPtr->fname, serverFile);
+                    lockPtr->next = NULL;
+
+                    appendFileLock(lockPtr);
+                } else {
+                    //file is locked and not available
+                    ret.return_size = sizeof(int);
+                    ret.return_val = malloc( sizeof(int) );
+                    *( (int*)ret.return_val ) = UNAVAIL;
+
+                    return ret;
                 }
             }
             break;
@@ -502,44 +545,30 @@ return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
         lockPtr = lockPtr->next;
     }
 
-    int fd = -1;
-    if( lockOk == true ) {
-        //lock exists and lock is available
-        fd = lockPtr->fd;
-    } else {
-        if( lockPtr == NULL ) {
-            //file is not locked. lock it and open file
-            fd = open(serverFile, flags);
+    if( lockPtr == NULL ) {
+        //file is not locked. open file and lock it
+        fd = open(serverFile, flags);
 
-            //error opening file
-            if( fd == -1 ) {
-                ret.return_size = 0;
-                ret.return_val = NULL;
-                return ret;
-            }
-
-            lockPtr = malloc(sizeof(struct fileLock));
-            lockPtr->sessionId = sessionPtr->sessionId;
-            lockPtr->fd = fd;
-            lockPtr->flags = flags;
-            strcpy(lockPtr->fname, serverFile);
-            lockPtr->next = NULL;
-
-            appendFileLock(lockPtr);
-        } else {
-            //file is locked and not available
-            ret.return_size = sizeof(int);
-            ret.return_val = malloc( sizeof(int) );
-            *( (int*)ret.return_val ) = UNAVAIL;
-
+        //error opening file
+        if( fd == -1 ) {
+            ret.return_size = 0;
+            ret.return_val = NULL;
             return ret;
         }
+
+        lockPtr = malloc(sizeof(struct fileLock));
+        lockPtr->sessionId = sessionPtr->sessionId;
+        lockPtr->fd = fd;
+        lockPtr->flags = flags;
+        strcpy(lockPtr->fname, serverFile);
+        lockPtr->next = NULL;
+
+        appendFileLock(lockPtr);
     }
 
     ret.return_size = sizeof(int);
     ret.return_val = malloc( sizeof(int) );
     *( (int*)ret.return_val ) = fd;
-    printf("fsOpen file fd %d\n", fd);
 
     return ret;
 }
@@ -583,22 +612,32 @@ return_type rpc_fsCloseFile(const int nparams, arg_type* argList)
         return ret;
     }
 
-    //close file and remove file lock
-    int closeFileRet =  close(requestFile);
-
     //discard lock even if close failed because the fd itself is wrong
-	removeFileLock(lockPtr);
+    removeFileLock(lockPtr);
     free(lockPtr);
 
-    //close dir failed and we want to return errorno
-    //we will think about this later
-    if( closeFileRet != 0 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
-        return ret;
+    //check if other sessions still has the file opened
+    lockPtr = fileLocks;
+    while(lockPtr != NULL) {
+        if( lockPtr->fd == requestFile )
+            break;
+        lockPtr = lockPtr->next;
     }
 
-    //CONSTRUCT RETURN TYPE
+    if( lockPtr == NULL ) {
+        //close file and remove file lock
+        int closeFileRet =  close(requestFile);
+
+        //close failed and we want to return errorno
+        //we will think about this later
+        if( closeFileRet != 0 ) {
+            ret.return_val = NULL;
+            ret.return_size = 0;
+            return ret;
+        }
+    }
+
+    //returining 0 on success
     ret.return_size = sizeof(int);
     ret.return_val = malloc( sizeof(int) );
     *( (int*)ret.return_val ) = 0;

@@ -4,6 +4,8 @@ build/
 Server
 fs_client
 fs_client2
+fs_client3
+fs_client4
 sample_server_app
 sample_client_app
 *.out

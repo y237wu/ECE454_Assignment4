@@ -709,19 +709,19 @@ int fsRemove(const char *name) {
         free(ret.return_val);
 
         if( retVal == 0 ) {
-			return 0;
-		} else if( retVal == EAGAIN ) {
-			sleep(5);
+            return 0;
+        } else if( retVal == EAGAIN ) {
+            sleep(5);
         } else if( retVal != EINVAL ) {
-			errno = retVal;
-			perror("fsRemove:");
-			exit(-1);
-		}
-
-        sessionPtr = sessionPtr->next;
+            errno = retVal;
+            perror("fsRemove:");
+            exit(-1);
+        } else {
+            sessionPtr = sessionPtr->next;
+        }
     }
 
     //remove failed
-	errno = ENOENT;
+    errno = ENOENT;
     return -1;
 }

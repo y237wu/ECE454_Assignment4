@@ -62,6 +62,7 @@ int main(int argc, char *argv[]) {
     int bytesread;
     int i = 0;
     bytesread = fsRead(fd, (void *)buf, 3000);
+    if( bytesread < 0 )
 	perror("fsRead");
     *((char *) buf + bytesread) = '\0';
 	printf("Bytes=%d, String='%s'\n", bytesread, buf);
@@ -166,7 +167,7 @@ int main(int argc, char *argv[]) {
 
 	printf("unmount2:\n");
     if (fsUnmount("foo2") < 0) {
-        perror("fsUnmount"); exit(1);
+        perror("fsUnmount");
     }
 
     printf("All tests passed!\n");

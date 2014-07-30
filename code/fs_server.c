@@ -203,12 +203,12 @@ return_type rpc_fsMount(const int nparams, arg_type* argList)
     struct mountSession* sessionPtr = sessions;
 
     while( sessionPtr != NULL ) {
-        //puplicate local folder name, rejected
+        //duplicate local folder name, rejected
         if( strcmp(sessionPtr->clientFolderName, clientFolderName) == 0 ) {
-			ret.return_val = malloc(sizeof(int));
-			ret.return_size = sizeof(int);
-			*((int*)ret.return_val) = ENOTUNIQ;
-			return ret;
+            ret.return_val = malloc(sizeof(int));
+            ret.return_size = sizeof(int);
+            *((int*)ret.return_val) = -1;
+            return ret;
         }
         sessionPtr = sessionPtr->next;
     }
@@ -235,7 +235,7 @@ return_type rpc_fsUnmount(const int nparams, arg_type* argList)
     if( nparams != 1 ) {
         ret.return_val = malloc(sizeof(int));
         ret.return_size = sizeof(int);
-		*((int*)ret.return_val) = EINVAL;
+	*((int*)ret.return_val) = -1;
         return ret;
     }
 
@@ -307,7 +307,7 @@ return_type rpc_fsOpenDir(const int nparams, arg_type* argList)
         if( dir == NULL ) {
             ret.return_size = sizeof(int);
             ret.return_val = malloc(sizeof(int));
-			*((int*)ret.return_val) = errno;
+            *((int*)ret.return_val) = -1;
             return ret;
         }
 
@@ -522,7 +522,7 @@ return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
                     //file is locked and not available
                     ret.return_size = sizeof(int);
                     ret.return_val = malloc( sizeof(int) );
-                    *( (int*)ret.return_val ) = EAGAIN;
+                    *( (int*)ret.return_val ) = -1;
 
                     return ret;
                 }
@@ -534,13 +534,14 @@ return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
 
     if( lockPtr == NULL ) {
         //file is not locked. open file and lock it
+        printf("open serverfile %s\n", serverFile);
         fd = open(serverFile, flags);
 
         //error opening file
         if( fd == -1 ) {
-            ret.return_size = sizeof(int);
-            ret.return_val = malloc(sizeof(int));
-			*((int*) ret.return_val) = errno;
+            perror("error opening file");
+            ret.return_size = 0;
+            ret.return_val = NULL;
             return ret;
         }
 
@@ -664,7 +665,6 @@ return_type rpc_fsRead(const int nparams, arg_type* argList)
     struct fileLock* lockPtr = fileLocks;
 
     while( lockPtr != NULL ) {
-        printf("fsRead fileLocks != NULL\n");
         if( lockPtr->sessionId == clientSessionId
                 && lockPtr->fd == requestFile 
                 && lockPtr->flags == O_RDONLY ) {
@@ -688,7 +688,7 @@ return_type rpc_fsRead(const int nparams, arg_type* argList)
     if( readSuccess == -1 ) {
         ret.return_val = malloc(sizeof(int));
         ret.return_size = sizeof(int);
-		*((int*)ret.return_val) = errno;
+        *((int*)ret.return_val) = -1;
         return ret;
     }
 
@@ -749,7 +749,7 @@ return_type rpc_fsWrite(const int nparams, arg_type* argList)
     if( writeSuccess == -1 ) {
         ret.return_val = malloc(sizeof(int));
         ret.return_size = sizeof(int);
-		*((int*)ret.return_val) = errno;
+        *((int*)ret.return_val) = -1;
         return ret;
     }
 
@@ -764,9 +764,8 @@ return_type rpc_fsWrite(const int nparams, arg_type* argList)
 return_type rpc_fsRemove(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
-        ret.return_val = malloc(sizeof(int));
-        ret.return_size = sizeof(int);
-		*((int*)ret.return_val) = EINVAL;
+        ret.return_val = NULL;
+        ret.return_size = 0;
         return ret;
     }
 
@@ -779,9 +778,8 @@ return_type rpc_fsRemove(const int nparams, arg_type* argList)
 
     //session not found
     if( findSession(clientSessionId, &sessionPtr) == -1 ) {
-        ret.return_val = malloc(sizeof(int));
-        ret.return_size = sizeof(int);
-		*((int*)ret.return_val) = EINVAL;
+        ret.return_val = NULL;
+        ret.return_size = 0;
         return ret;
     }
 
@@ -810,16 +808,15 @@ return_type rpc_fsRemove(const int nparams, arg_type* argList)
     if( folderLockPtr != NULL || fileLockPtr != NULL ) {
         ret.return_val = malloc(sizeof(int));
         ret.return_size = sizeof(int);
-		*((int*)ret.return_val) = EAGAIN;
+        *((int*)ret.return_val) = -1;
         return ret;
     }
 
     int removeSuccess = remove( serverDir );
 
     if( removeSuccess == -1 ) {
-        ret.return_val = malloc(sizeof(int));
-        ret.return_size = sizeof(int);
-		*((int*)ret.return_val) = errno;
+        ret.return_val = NULL;
+        ret.return_size = 0;
         return ret;
     }
 

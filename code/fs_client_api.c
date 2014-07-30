@@ -165,11 +165,11 @@ int fsMount(const char *srvIpOrDomName,
         return -1;
     }
 
-	if( *((int*)ret.return_val) < 0 ) {
-		errno = *((int*)ret.return_val);
-		perror("fsMount error:");
-		exit(-1);
-	}
+    if( *((int*)ret.return_val) < 0 ) {
+        errno = ENOTUNIQ;
+        perror("fsMount error:");
+        return -1;
+    }
 	
     //assuming pre-allocated folder name and server ip
     struct fsSession* sessionPtr = malloc(sizeof(struct fsSession));
@@ -197,17 +197,19 @@ int fsUnmount(const char *localFolderName) {
     int retVal = -1;
 
     while( sessionPtr != NULL ) {
-        if( strcmp( sessionPtr->localFolderName, localFolderName ) == 0 ) {
-            retVal = 0;
+        printf("unmount %s\n", sessionPtr->localFolderName);
+        if( strlen(sessionPtr->localFolderName) == strlen(localFolderName) 
+                && strcmp( sessionPtr->localFolderName, 
+                                                localFolderName) == 0 ) {
             break;
         }
         sessionPtr = sessionPtr->next;
     }
 
-    if( retVal != 0 || sessionPtr == NULL ) {
+    if( sessionPtr == NULL ) {
         printf("session does not exist\n");
-		errno = ENOENT;
-        exit(-1);
+        errno = ENOENT;
+        return -1;
     }
 
     ret = make_remote_call(sessionPtr->serverIp,
@@ -227,9 +229,9 @@ int fsUnmount(const char *localFolderName) {
     free(ret.return_val);
 
     if( retVal < 0 ) {
-        errno = retVal;
-		perror("Unmount error:");
-        exit(-1);
+        errno = EINVAL;
+        perror("Unmount error:");
+        return -1;
     }
 
     //delete session from session list
@@ -244,7 +246,8 @@ FSDIR* fsOpenDir(const char *folderName) {
     struct fsSession* sessionPtr = sessions;
 
     while( sessionPtr != NULL ) {
-        if( strcmp(sessionPtr->localFolderName, folderName) == 0 ) {
+        if( strncmp(sessionPtr->localFolderName, folderName,
+                strlen(sessionPtr->localFolderName)) == 0 ) {
             break;
         }
         sessionPtr = sessionPtr->next;
@@ -270,12 +273,12 @@ FSDIR* fsOpenDir(const char *folderName) {
         errno = EPROTO;
         exit(-1);
     } else if( ret.return_size == sizeof(int) ) {
-		if( *((int*)ret.return_val) < 0 ) {
-			errno = *((int*)ret.return_val);
-			perror("fsOpenDir:");
-			exit(-1);
-		}
-	}
+        if( *((int*)ret.return_val) < 0 ) {
+            errno = EINVAL;
+            perror("fsOpenDir:");
+            return NULL;
+        }
+    }
 
     FSDIR* retVal = *( (FSDIR**)ret.return_val );
     free(ret.return_val);
@@ -314,8 +317,8 @@ int fsCloseDir(FSDIR *folder) {
     // session not found
 	if( sessionPtr == NULL ) {
         printf("session does not exist\n");
-		errno = ENOENT;
-        exit(-1);
+        errno = ENOENT;
+        return -1;
     }
 
     return_type ret = make_remote_call(sessionPtr->serverIp,
@@ -332,9 +335,9 @@ int fsCloseDir(FSDIR *folder) {
         return -1;
     } else if( ret.return_size == sizeof(int) ) {
 		if( *((int*)ret.return_val) < 0 ) {
-			errno = *((int*)ret.return_val);
+			errno = EINVAL;
 			perror("fsCloseDir:");
-			exit(-1);
+                        return -1;
 		}
 	}
 
@@ -343,7 +346,7 @@ int fsCloseDir(FSDIR *folder) {
 
     if( retVal != 0 ) {
         printf("CloseDir failed\n");
-        errno = retVal;
+        errno = EINVAL;
         return -1;
     }
 
@@ -445,8 +448,9 @@ int fsOpen(const char *fname, int mode) {
     struct fsSession* sessionPtr = sessions;
 
     while( sessionPtr != NULL ) {
-        if( strncmp(sessionPtr->localFolderName, fname,
-                    strlen(sessionPtr->localFolderName) ) == 0 ) {
+        if( *(fname+strlen(sessionPtr->localFolderName)) == '/' &&
+                strncmp(sessionPtr->localFolderName, fname,
+                strlen(sessionPtr->localFolderName) ) == 0 ) {
             break;
         }
         sessionPtr = sessionPtr->next;
@@ -456,7 +460,7 @@ int fsOpen(const char *fname, int mode) {
     if( sessionPtr == NULL ) {
         printf("session does not exist\n");
 		errno = ENOENT;
-        exit(-1);
+        return -1;
     }
 
     int retVal;
@@ -471,22 +475,17 @@ int fsOpen(const char *fname, int mode) {
                                            fname,
                                            sizeof(int),
                                            &flags);
-		if( ret.return_size == 0 ) {
-			printf("open remote call failed\n");
-			errno = EPROTO;
-			return -1;
-		}
+        if( ret.return_size == 0 ) {
+                errno = ENOENT;
+                return -1;
+        }
         retVal = *( (int*) ret.return_val );
         free( ret.return_val );
 
-        if( retVal == EAGAIN  ) {
+        if( retVal == -1  ) {
             sleep(5);
         } else if( retVal > 0) {
 			break;
-		} else {
-			errno = retVal;
-			perror("fsOpen:");
-			exit(-1);
         }
     }
 
@@ -524,7 +523,7 @@ int fsClose(int fd) {
     //file not found
     if( found == false ){
         printf("session does not exist\n");
-		errno = ENOENT;
+        errno = ENOENT;
         exit(-1);
     }
 
@@ -546,7 +545,7 @@ int fsClose(int fd) {
 
     if( retVal != 0 ) {
         printf("CloseFile failed\n");
-        errno = retVal;
+        errno = EINVAL;
         return -1;
     }
 
@@ -604,7 +603,7 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 
     int retVal = ret.return_size;
 
-    memcpy(buf, ret.return_val, count);
+    memcpy(buf, ret.return_val, retVal);
     free( ret.return_val );
     
     return retVal;
@@ -654,7 +653,7 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
 
     if( retVal < 0 ) {
         printf("unmount remote call failed\n");
-        errno = retVal;
+        errno = EINVAL;
         return -1;
     }
 

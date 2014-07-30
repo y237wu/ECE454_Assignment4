@@ -6,6 +6,9 @@ fs_client
 fs_client2
 fs_client3
 fs_client4
+fs_client5
+fs_client6
+fs_client7
 sample_server_app
 sample_client_app
 *.out

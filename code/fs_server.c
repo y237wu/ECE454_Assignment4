@@ -35,9 +35,9 @@ struct fileLock {
     struct fileLock* next;
 };
 
-struct mountSession* sessions;
-struct folderLock* folderLocks;
-struct fileLock* fileLocks;
+struct mountSession* sessions = NULL;
+struct folderLock* folderLocks = NULL;
+struct fileLock* fileLocks = NULL;
 
 int findSession( int clientSessionId, struct mountSession** sessionPtr,
         struct mountSession** prevSessionPtr)
@@ -58,7 +58,7 @@ int findSession( int clientSessionId, struct mountSession** sessionPtr,
     return 0;
 }
 
-const char* replaceClientLocalFolder(const char* clientDir,
+char* replaceClientLocalFolder(const char* clientDir,
         struct mountSession* session)
 {
     int clientDirLen = strlen(clientDir);
@@ -67,6 +67,7 @@ const char* replaceClientLocalFolder(const char* clientDir,
         + strlen(serverFolderName);
 
     char* serverDir = malloc(serverDirLen + 1);
+    memset(serverDir, 0, serverDirLen+1);
 
     strcat(serverDir, serverFolderName);
     strcat(serverDir, clientDir + clientFolderLen);
@@ -140,12 +141,16 @@ return_type r_fsMount(const int nparams, arg_type* argList)
     sessionPtr = malloc(sizeof(struct mountSession));
     sessionPtr->clientFolderName = malloc(strlen(clientFolderName)+1);
     strcpy(sessionPtr->clientFolderName, clientFolderName);
+    sessionPtr->next = NULL;
 
     sessionPtr->sessionId = g_sessionId++;
 
     ret.return_size = sizeof(int);
     ret.return_val = malloc( sizeof(int) );
     *( (int*)ret.return_val ) = sessionPtr->sessionId;
+
+    if(sessions == NULL)
+        sessions = sessionPtr;
 
     return ret;
 }
@@ -210,6 +215,7 @@ return_type r_fsOpenDir(const int nparams, arg_type* argList)
     //open server directory and return DIR
     const char* serverFolder = replaceClientLocalFolder(requestDir,
                                                     sessionPtr);
+    printf("serverFolder: %s\n", serverFolder);
     //lock the opened folder
     struct folderLock* lockPtr = folderLocks;
 
@@ -227,6 +233,7 @@ return_type r_fsOpenDir(const int nparams, arg_type* argList)
 
     if( opened == false ) {
         DIR* dir = opendir(serverFolder);
+        printf("dir %d\n", dir);
 
         //error opening directory
         if( dir == NULL ) {
@@ -238,12 +245,17 @@ return_type r_fsOpenDir(const int nparams, arg_type* argList)
         lockPtr = malloc(sizeof(struct folderLock));
         lockPtr->sessionId = sessionPtr->sessionId;
         lockPtr->dir = dir;
+        printf("lockPtr->dir %d\n", lockPtr->dir);
         strcpy(lockPtr->dname, serverFolder);
+        lockPtr->next = NULL;
+
+        if( folderLocks == NULL )
+            folderLocks = lockPtr;
     }
 
     ret.return_size = sizeof(DIR*);
     ret.return_val = malloc( sizeof(DIR*) );
-    ret.return_val = lockPtr->dir;
+    memcpy(ret.return_val, &lockPtr->dir, sizeof(DIR*));
 
     return ret;
 }
@@ -277,7 +289,7 @@ return_type r_fsCloseDir(const int nparams, arg_type* argList)
     struct folderLock* lockPtr = folderLocks;
 
     while( lockPtr != NULL ) {
-        if( lockPtr->sessionId = sessionPtr->sessionId &&
+        if( lockPtr->sessionId == sessionPtr->sessionId &&
                 lockPtr->dir == requestDir ) {
             break;
         }
@@ -287,6 +299,7 @@ return_type r_fsCloseDir(const int nparams, arg_type* argList)
 
     //open folder not found
     if( lockPtr == NULL ) {
+        printf("closeDir folder not found\n");
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
@@ -337,6 +350,7 @@ return_type r_fsReadDir(const int nparams, arg_type* argList)
 
     //session not found
     if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+        printf("readDir session not found\n");
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
@@ -345,7 +359,8 @@ return_type r_fsReadDir(const int nparams, arg_type* argList)
     //find opened folder for the session
     struct folderLock* lockPtr = folderLocks;
     while( lockPtr != NULL ) {
-        if( lockPtr->sessionId = sessionPtr->sessionId &&
+        printf("sessionId %d dir %d\n", lockPtr->sessionId, lockPtr->dir);
+        if( lockPtr->sessionId == sessionPtr->sessionId &&
                 lockPtr->dir == requestDir ) {
             break;
         }
@@ -354,18 +369,30 @@ return_type r_fsReadDir(const int nparams, arg_type* argList)
 
     //open folder not found
     if( lockPtr == NULL ) {
+        printf("readDir folder lock not found\n");
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
     }
 
     //close directory and remove folder lock
+    int initErrno = errno;
     struct dirent* ent =  readdir(requestDir);
 
-    //CONSTRUCT RETURN TYPE
-    ret.return_size = sizeof( struct dirent );
-    ret.return_val = malloc( sizeof(struct dirent) );
-    memcpy( ret.return_val, ent, sizeof(struct dirent) );
+    if( ent == NULL  && errno == initErrno) {
+        ret.return_size = sizeof( int );
+        ret.return_val = malloc( sizeof(int) );
+        memset( ret.return_val, 0, sizeof(int) );
+    } else if( ent != NULL ) {
+        //CONSTRUCT RETURN TYPE
+        ret.return_size = sizeof( struct dirent );
+        ret.return_val = malloc( sizeof(struct dirent) );
+        memcpy( ret.return_val, ent, sizeof(struct dirent) );
+    } else {
+        printf("readDir folder failed\n");
+        ret.return_val = NULL;
+        ret.return_size = 0;
+    }
 
     return ret;
 }
@@ -387,15 +414,16 @@ return_type r_fsOpenFile(const int nparams, arg_type* argList)
 
     //session not found
     if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+        printf("fsOpen session not found\n");
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
     }
 
     //open server directory and return DIR
-    const char* serverFile = replaceClientLocalFolder(requestFile,
-                                                    sessionPtr);
+    char* serverFile = replaceClientLocalFolder(requestFile, sessionPtr);
 
+    printf("fsOpenFile serverFile %s\n", serverFile);
     //check if the file is locked or not
     struct fileLock* lockPtr = fileLocks;
     bool lockOk = false;
@@ -436,7 +464,12 @@ return_type r_fsOpenFile(const int nparams, arg_type* argList)
             lockPtr = malloc(sizeof(struct fileLock));
             lockPtr->sessionId = sessionPtr->sessionId;
             lockPtr->fd = fd;
+            lockPtr->flags = flags;
             strcpy(lockPtr->fname, serverFile);
+            lockPtr->next = NULL;
+
+            if( fileLocks == NULL )
+                fileLocks = lockPtr;
         } else {
             //file is locked and not available
             ret.return_size = sizeof(int);
@@ -450,6 +483,7 @@ return_type r_fsOpenFile(const int nparams, arg_type* argList)
     ret.return_size = sizeof(int);
     ret.return_val = malloc( sizeof(int) );
     *( (int*)ret.return_val ) = fd;
+    printf("fsOpen file fd %d\n", fd);
 
     return ret;
 }
@@ -483,7 +517,7 @@ return_type r_fsCloseFile(const int nparams, arg_type* argList)
     struct fileLock* lockPtr = fileLocks;
 
     while( lockPtr != NULL ) {
-        if( lockPtr->sessionId = sessionPtr->sessionId &&
+        if( lockPtr->sessionId == sessionPtr->sessionId &&
                 lockPtr->fd == requestFile ) {
             break;
         }
@@ -491,8 +525,9 @@ return_type r_fsCloseFile(const int nparams, arg_type* argList)
         lockPtr = lockPtr->next;
     }
 
-    //open folder not found
+    //open file not found
     if( lockPtr == NULL ) {
+        printf("fsCloseFile file not found\n");
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
@@ -555,6 +590,7 @@ return_type r_fsRead(const int nparams, arg_type* argList)
     struct fileLock* lockPtr = fileLocks;
 
     while( lockPtr != NULL ) {
+        printf("fsRead fileLocks != NULL\n");
         if( lockPtr->sessionId == clientSessionId
                 && lockPtr->fd == requestFile 
                 && lockPtr->flags == O_RDONLY ) {
@@ -565,13 +601,16 @@ return_type r_fsRead(const int nparams, arg_type* argList)
 
     //lock not found
     if( lockPtr == NULL ) {
+        printf("fsRead file lock not found\n");
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
     }
 
-    char* buffer = malloc(readCount);
+    void* buffer = malloc(readCount);
+    memset(buffer, 0, readCount);
     int readSuccess = read( requestFile, buffer, readCount );
+    printf("read buffer %s\n", buffer);
 
     if( readSuccess == -1 ) {
         free(buffer);
@@ -581,9 +620,9 @@ return_type r_fsRead(const int nparams, arg_type* argList)
     }
 
     //CONSTRUCT RETURN TYPE
-    ret.return_size = readCount;
-    ret.return_val = malloc( readCount );
-    strcpy((char*)ret.return_val, buffer);
+    ret.return_size = readSuccess;
+    ret.return_val = malloc( readSuccess );
+    memcpy(ret.return_val, buffer, readSuccess);
 
     return ret;
 }
@@ -599,7 +638,8 @@ return_type r_fsWrite(const int nparams, arg_type* argList)
     //INITIALIZE PARAMS TO LOCAL VARIABLES
     int clientSessionId = *( (int*) argList->arg_val );
     int requestFile = *( (int*) argList->next->arg_val );
-    char* writeBuffer = (char*) argList->next->next->arg_val;
+    void* writeBuffer = argList->next->next->arg_val;
+    printf("writeBuffer %s\n", writeBuffer);
     int writeCount = *( (int*) argList->next->next->next->arg_val );
 
     //FIND SESSION
@@ -634,6 +674,7 @@ return_type r_fsWrite(const int nparams, arg_type* argList)
     }
 
     int writeSuccess = write( requestFile, writeBuffer, writeCount );
+    printf("writeSuccess %d requestFile: %d writeCount %d\n", writeSuccess, requestFile, writeCount);
 
     if( writeSuccess == -1 ) {
         ret.return_val = NULL;
@@ -644,7 +685,7 @@ return_type r_fsWrite(const int nparams, arg_type* argList)
     //CONSTRUCT RETURN TYPE
     ret.return_size = sizeof(int);
     ret.return_val = malloc( sizeof(int) );
-    (*(int*) ret.return_val) = writeSuccess;
+    *( (int*) ret.return_val) = writeSuccess;
 
     return ret;
 }
@@ -766,17 +807,17 @@ int main(int argc, void* argv[])
         return -1;
     }
 
-    char* folderName = (char*) argv[1];
+    serverFolderName = (char*) argv[1];
 
     //set up file system
-    browse_dir( folderName, 0 );
+    //browse_dir( folderName, 0 );
 
     register_procedure("fsMount", 1, r_fsMount);
-    register_procedure("fsUnmount", 1, r_fsMount);
+    register_procedure("fsUnmount", 1, r_fsUnmount);
     register_procedure("fsOpenDir", 2, r_fsOpenDir);
     register_procedure("fsCloseDir", 2, r_fsCloseDir);
     register_procedure("fsReadDir", 2, r_fsReadDir);
-    register_procedure("fsOpenFile", 2, r_fsOpenFile);
+    register_procedure("fsOpenFile", 3, r_fsOpenFile);
     register_procedure("fsCloseFile", 2, r_fsCloseFile);
     register_procedure("fsRead", 3, r_fsRead);
     register_procedure("fsWrite", 4, r_fsWrite);

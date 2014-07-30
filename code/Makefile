@@ -1,7 +1,7 @@
 OBJECTS := $(patsubst %.c,%.o,$(wildcard *.c))
-INCLUDES := ece454_fs.h simplified_rpc/ece454rpc_types.h
+INCLUDES := ece454_fs.h simplified_rpc/ece454rpc_types.h fsOtherIncludes.h
 
-all: fs_client fs_server client_api
+all: client_api fs_client fs_server
 
 fs_client: fs_client.o client_api
 	gcc fs_client.o -L. -lclient_api -o fs_client

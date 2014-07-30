@@ -12,12 +12,6 @@
 
 typedef DIR FSDIR;
 
-const int UNAVAIL = -2;
-
-struct fsReadDirReturnType
-{
-    struct dirent dirEntity;
-    DIR dir;
-};
+#define UNAVAIL -2
 
 #endif

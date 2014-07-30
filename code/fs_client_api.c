@@ -19,7 +19,7 @@ struct fileList {
 
 struct fsSession {
     const char* serverIp;
-    unsigned int serverPort;
+    int serverPort;
     const char* localFolderName;
     int sessionId;
 
@@ -28,7 +28,7 @@ struct fsSession {
     struct fileList* files;
 };
 
-struct fsSession* sessions;
+struct fsSession* sessions = NULL;
 
 //assuming one session right now, if we need more, than we add list
 //list<fsSession*> fsSessionList;
@@ -51,21 +51,21 @@ int fsMount(const char *srvIpOrDomName,
         return -1;
     }
 
-    struct fsSession* session = malloc(sizeof(struct fsSession));
-
-    //assuming pre-allocated folder name and server ip
-    session->serverIp = srvIpOrDomName;
-    session->serverPort = srvPort;
-    session->localFolderName = localFolderName;
-
-    session->sessionId = *( (int*) ret.return_val );
-    free( ret.return_val );
-
     struct fsSession* sessionPtr = sessions;
     while( sessionPtr != NULL )
         sessionPtr = sessionPtr->next;
 
-    sessionPtr = session;
+    //assuming pre-allocated folder name and server ip
+    sessionPtr = malloc(sizeof(struct fsSession));
+    sessionPtr->serverIp = srvIpOrDomName;
+    sessionPtr->serverPort = srvPort;
+    sessionPtr->localFolderName = localFolderName;
+
+    sessionPtr->sessionId = *( (int*) ret.return_val );
+    free( ret.return_val );
+
+    if(sessions == NULL)
+        sessions = sessionPtr;
 
     return 0;
 }
@@ -95,7 +95,7 @@ int fsUnmount(const char *localFolderName) {
                            "fsUnmount",
                            1,
                            sizeof(int),
-                           sessionPtr->sessionId);
+                           &sessionPtr->sessionId);
 
     if( ret.return_size == 0 ) {
         printf("unmount remote call failed\n");
@@ -128,8 +128,7 @@ FSDIR* fsOpenDir(const char *folderName) {
     struct fsSession* sessionPtr = sessions;
 
     while( sessionPtr != NULL ) {
-        if( strncmp( sessionPtr->localFolderName, folderName,
-                    sizeof( sessionPtr->localFolderName ) ) == 0 ) {
+        if( strcmp(sessionPtr->localFolderName, folderName) == 0 ) {
             break;
         }
         sessionPtr = sessionPtr->next;
@@ -144,7 +143,7 @@ FSDIR* fsOpenDir(const char *folderName) {
                                        "fsOpenDir",
                                        2,
                                        sizeof(int),
-                                       sessionPtr->sessionId,
+                                       &sessionPtr->sessionId,
                                        strlen(folderName) + 1,
                                        folderName);
     if( ret.return_size == 0 ) {
@@ -152,8 +151,6 @@ FSDIR* fsOpenDir(const char *folderName) {
         return NULL;
     }
 
-    //potential memory leak? if not called fsclose dir
-    //fishy. even though i think its right
     FSDIR* retVal = *( (FSDIR**)ret.return_val );
     free(ret.return_val);
 
@@ -165,6 +162,10 @@ FSDIR* fsOpenDir(const char *folderName) {
 
     fsDirPtr = malloc( sizeof(struct fsDirList) );
     fsDirPtr->value = retVal;
+
+    if(sessionPtr->fsDirs == NULL)
+        sessionPtr->fsDirs = fsDirPtr;
+
 
     return retVal;
 }
@@ -200,9 +201,10 @@ int fsCloseDir(FSDIR *folder) {
                                        "fsCloseDir",
                                        2,
                                        sizeof(int),
-                                       sessionPtr->sessionId,
+                                       &sessionPtr->sessionId,
                                        sizeof(FSDIR*),
-                                       folder);
+                                       &folder);
+
     if( ret.return_size == 0 ) {
         printf("remote fsCloseDir error\n");
         return -1;
@@ -216,6 +218,7 @@ int fsCloseDir(FSDIR *folder) {
         errno = retVal;
         return -1;
     }
+    printf("list operations\n");
 
     //remove the folder from the session folder list
     if( prevfsDirPtr == NULL ) {
@@ -223,7 +226,6 @@ int fsCloseDir(FSDIR *folder) {
     } else {
         prevfsDirPtr->next = fsDirPtr->next;
     }
-    free(folder);
     free(fsDirPtr);
 
     return 0;
@@ -256,33 +258,33 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     if( found == false )
         return NULL;
 
+
     return_type ret = make_remote_call( sessionPtr->serverIp,
                                         sessionPtr->serverPort,
                                         "fsReadDir",
                                         2,
                                         sizeof(int),
-                                        sessionPtr->sessionId,
+                                        &sessionPtr->sessionId,
                                         sizeof(FSDIR*),
-                                        folder );
+                                        &folder );
 
     if( ret.return_size == 0 ) {
         printf("remote fsReadDir error\n");
         return NULL;
+    } else if( ret.return_size == sizeof(int) ) {
+        int retVal = *( (int*) ret.return_val );
+        free(ret.return_val);
+        if( retVal == 0 )
+            return NULL;
     }
 
-    //store dirent
-    /*
-    struct fsReadDirReturnType retVal;
-    memcpy( &retVal, ret.return_val, sizeof( struct fsReadDirReturnType ) );
-    free( ret.return_val );
-    */
-
     struct dirent *d = (struct dirent*) ret.return_val;
-    //how do we update FSDIR?
-    //going to bet that the server side will handle this as long
-    //as we keep the value of the pointer to be constant
 
-    //folder = retVal.dir;
+    memcpy(&(dent.entName), &(d->d_name), 256);
+    free(ret.return_val);
+
+    if( d == NULL )
+        return NULL;
 
     if(d->d_type == DT_DIR) {
 	dent.entType = 1;
@@ -293,9 +295,6 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     else {
 	dent.entType = -1;
     }
-
-    memcpy(&(dent.entName), &(d->d_name), 256);
-    free(ret.return_val);
 
     return &dent;
 }
@@ -315,15 +314,17 @@ int fsOpen(const char *fname, int mode) {
 
     while( sessionPtr != NULL ) {
         if( strncmp(sessionPtr->localFolderName, fname,
-                    sizeof( sessionPtr->localFolderName ) ) == 0 ) {
+                    sizeof(sessionPtr->localFolderName) ) == 0 ) {
             break;
         }
         sessionPtr = sessionPtr->next;
     }
 
     // session not found
-    if( sessionPtr == NULL )
+    if( sessionPtr == NULL ) {
+        printf("fsOpen session not found\n");
         return -1;
+    }
 
     int retVal;
     while(1) {
@@ -332,11 +333,11 @@ int fsOpen(const char *fname, int mode) {
                                            "fsOpenFile",
                                            3,
                                            sizeof(int),
-                                           sessionPtr->sessionId,
+                                           &sessionPtr->sessionId,
                                            strlen(fname) + 1,
                                            fname,
                                            sizeof(int),
-                                           flags);
+                                           &flags);
         if( ret.return_size == 0 ) {
             printf("remote fsOpenFile error\n");
             return -1;
@@ -360,6 +361,8 @@ int fsOpen(const char *fname, int mode) {
 
     filePtr = malloc( sizeof(struct fileList) );
     filePtr->fd = retVal;
+    if( sessionPtr->files == NULL )
+        sessionPtr->files = filePtr;
 
     return retVal;
 }
@@ -395,9 +398,9 @@ int fsClose(int fd) {
                                        "fsCloseFile",
                                        2,
                                        sizeof(int),
-                                       sessionPtr->sessionId,
+                                       &sessionPtr->sessionId,
                                        sizeof(int),
-                                       fd);
+                                       &fd);
     if( ret.return_size == 0 ) {
         printf("remote fsCloseFile error\n");
         return -1;
@@ -452,17 +455,17 @@ int fsRead(int fd, void *buf, const unsigned int count) {
                                        "fsRead",
                                        3,
                                        sizeof(int),
-                                       sessionPtr->sessionId,
+                                       &sessionPtr->sessionId,
                                        sizeof(int),
-                                       fd,
+                                       &fd,
                                        sizeof(int),
-                                       count);
+                                       &count);
     if( ret.return_size == 0 ) {
         printf("remote fsReadFile error\n");
         return -1;
     }
 
-    int retVal = *( (int*)ret.return_val );
+    int retVal = ret.return_size;
 
     memcpy(buf, ret.return_val, count);
     free( ret.return_val );
@@ -499,13 +502,10 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
                                        "fsWrite",
                                        4,
                                        sizeof(int),
-                                       sessionPtr->sessionId,
-                                       sizeof(int),
-                                       fd,
-                                       count,
-                                       buf,
-                                       sizeof(int),
-                                       count);
+                                       &sessionPtr->sessionId,
+                                       sizeof(int), &fd,
+                                       count, buf,
+                                       sizeof(int), &count);
     if( ret.return_size == 0 ) {
         printf("remote fsWriteFile error\n");
         return -1;
@@ -514,13 +514,13 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
     int retVal = *( (int*) ret.return_val );
     free( ret.return_val );
 
-    if( retVal != 0 ) {
+    if( retVal < 0 ) {
         printf("unmount remote call failed\n");
         errno = retVal;
         return -1;
     }
 
-    return 0;
+    return retVal;
 }
 
 int fsRemove(const char *name) {
@@ -536,7 +536,7 @@ int fsRemove(const char *name) {
                                            "fsRemove",
                                            2,
                                            sizeof(int),
-                                           sessionPtr->sessionId,
+                                           &sessionPtr->sessionId,
                                            nameLen,
                                            name);
         if( ret.return_size == 0 ) {

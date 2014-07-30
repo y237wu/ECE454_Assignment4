@@ -100,12 +100,15 @@ int main(int argc, char *argv[]) {
     if((ff = fsOpen(fname, 0)) < 0) {
 	perror("fsOpen(read)"); exit(1);
     }
+    printf("fsOpen ff %d\n", ff);
 
     int readcount = -1;
 
     if((readcount = fsRead(ff, readbuf, 256)) < 256) {
 	fprintf(stderr, "fsRead() read fewer than 256\n");
     }
+
+    printBuf(readbuf, 256);
 
     if(memcmp(readbuf, buf, readcount)) {
 	fprintf(stderr, "return buf from fsRead() differs from data written!\n");

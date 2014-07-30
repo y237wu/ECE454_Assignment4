@@ -12,6 +12,4 @@
 
 typedef DIR FSDIR;
 
-#define UNAVAIL -2
-
 #endif

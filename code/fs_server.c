@@ -206,28 +206,28 @@ char* replaceClientLocalFolder(const char* clientDir,
 
 return_type rpc_fsMount(const int nparams, arg_type* argList)
 {
-
     if( nparams != 1 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
     const char* clientFolderName = (const char*) argList->arg_val;
-
     struct mountSession* sessionPtr = sessions;
 
     while( sessionPtr != NULL ) {
         //puplicate local folder name, rejected
         if( strcmp(sessionPtr->clientFolderName, clientFolderName) == 0 ) {
-            ret.return_val = NULL;
-            ret.return_size = 0;
-            return ret;
+			ret.return_val = malloc(sizeof(int));
+			ret.return_size = sizeof(int);
+			*((int*)ret.return_val) = ENOTUNIQ;
+			return ret;
         }
         sessionPtr = sessionPtr->next;
     }
 
-    printf("local folder name: %s\n", clientFolderName);
+    printf("sessionId %d local folder name: %s\n", g_sessionId, clientFolderName);
 
     sessionPtr = malloc(sizeof(struct mountSession));
     sessionPtr->clientFolderName = malloc(strlen(clientFolderName)+1);
@@ -249,13 +249,13 @@ return_type rpc_fsMount(const int nparams, arg_type* argList)
 return_type rpc_fsUnmount(const int nparams, arg_type* argList)
 {
     if( nparams != 1 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
     int clientSessionId = *( (int*) argList->arg_val );
-
     struct mountSession* sessionPtr = sessions;
 
     //session not found
@@ -280,8 +280,9 @@ return_type rpc_fsUnmount(const int nparams, arg_type* argList)
 return_type rpc_fsOpenDir(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -321,8 +322,9 @@ return_type rpc_fsOpenDir(const int nparams, arg_type* argList)
 
         //error opening directory
         if( dir == NULL ) {
-            ret.return_size = 0;
-            ret.return_val = NULL;
+            ret.return_size = sizeof(int);
+            ret.return_val = malloc(sizeof(int));
+			*((int*)ret.return_val) = errno;
             return ret;
         }
 
@@ -345,8 +347,9 @@ return_type rpc_fsOpenDir(const int nparams, arg_type* argList)
 return_type rpc_fsCloseDir(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -418,8 +421,9 @@ return_type rpc_fsCloseDir(const int nparams, arg_type* argList)
 return_type rpc_fsReadDir(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -482,8 +486,9 @@ return_type rpc_fsReadDir(const int nparams, arg_type* argList)
 return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
 {
     if( nparams != 3 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -535,7 +540,7 @@ return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
                     //file is locked and not available
                     ret.return_size = sizeof(int);
                     ret.return_val = malloc( sizeof(int) );
-                    *( (int*)ret.return_val ) = UNAVAIL;
+                    *( (int*)ret.return_val ) = EAGAIN;
 
                     return ret;
                 }
@@ -551,8 +556,9 @@ return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
 
         //error opening file
         if( fd == -1 ) {
-            ret.return_size = 0;
-            ret.return_val = NULL;
+            ret.return_size = sizeof(int);
+            ret.return_val = malloc(sizeof(int));
+			*((int*) ret.return_val) = errno;
             return ret;
         }
 
@@ -576,8 +582,9 @@ return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
 return_type rpc_fsCloseFile(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -648,8 +655,9 @@ return_type rpc_fsCloseFile(const int nparams, arg_type* argList)
 return_type rpc_fsRead(const int nparams, arg_type* argList)
 {
     if( nparams != 3 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -696,9 +704,9 @@ return_type rpc_fsRead(const int nparams, arg_type* argList)
     int readSuccess = read( requestFile, buffer, readCount );
 
     if( readSuccess == -1 ) {
-        free(buffer);
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = errno;
         return ret;
     }
 
@@ -713,8 +721,9 @@ return_type rpc_fsRead(const int nparams, arg_type* argList)
 return_type rpc_fsWrite(const int nparams, arg_type* argList)
 {
     if( nparams != 4 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -758,8 +767,9 @@ return_type rpc_fsWrite(const int nparams, arg_type* argList)
     printf("writeSuccess %d requestFile: %d writeCount %d\n", writeSuccess, requestFile, writeCount);
 
     if( writeSuccess == -1 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = errno;
         return ret;
     }
 
@@ -774,8 +784,9 @@ return_type rpc_fsWrite(const int nparams, arg_type* argList)
 return_type rpc_fsRemove(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -788,8 +799,9 @@ return_type rpc_fsRemove(const int nparams, arg_type* argList)
 
     //session not found
     if( findSession(clientSessionId, &sessionPtr) == -1 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EINVAL;
         return ret;
     }
 
@@ -816,17 +828,18 @@ return_type rpc_fsRemove(const int nparams, arg_type* argList)
 
     //if either the folder or the file is locked
     if( folderLockPtr != NULL || fileLockPtr != NULL ) {
-        ret.return_size = sizeof(int);
         ret.return_val = malloc(sizeof(int));
-        *( (int*)ret.return_val ) = UNAVAIL;
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = EAGAIN;
         return ret;
     }
 
     int removeSuccess = remove( serverDir );
 
     if( removeSuccess == -1 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
+        ret.return_val = malloc(sizeof(int));
+        ret.return_size = sizeof(int);
+		*((int*)ret.return_val) = errno;
         return ret;
     }
 
@@ -888,6 +901,12 @@ int main(int argc, void* argv[])
     }
 
     serverFolderName = (char*) argv[1];
+	DIR* dir = opendir(serverFolderName);
+	if( dir == NULL ) {
+		perror("fsServer");
+		return -1;
+	}
+	closedir(dir);
 
     register_procedure("fsMount", 1, rpc_fsMount);
     register_procedure("fsUnmount", 1, rpc_fsUnmount);

@@ -30,8 +30,44 @@ struct fsSession {
 
 struct fsSession* sessions = NULL;
 
-//assuming one session right now, if we need more, than we add list
-//list<fsSession*> fsSessionList;
+void appendSession(struct fsSession* newSession)
+{
+    if( sessions == NULL ) {
+        sessions = newSession;
+        return;
+    }
+
+    struct fsSession** sessionPtr = &sessions;
+
+    while( (*sessionPtr)->next != NULL ) {
+        sessionPtr = &((*sessionPtr)->next);
+    }
+
+    (*sessionPtr)->next = newSession;
+}
+
+void removeSession(struct fsSession* removeSession)
+{
+    if( sessions == removeSession ) {
+        sessions = sessions->next;
+        return;
+    }
+
+    struct fsSession** sessionPtr = &sessions;
+    struct fsSession** prevSessionPtr = NULL;
+
+    while( *sessionPtr != NULL ) {
+        if( *sessionPtr == removeSession )
+            break;
+        prevSessionPtr = sessionPtr;
+        sessionPtr = &((*sessionPtr)->next);
+    }
+
+    if( *sessionPtr = NULL )
+        return;
+
+    (*prevSessionPtr)->next = *sessionPtr;
+}
 
 int fsMount(const char *srvIpOrDomName,
             const unsigned int srvPort,
@@ -51,12 +87,8 @@ int fsMount(const char *srvIpOrDomName,
         return -1;
     }
 
-    struct fsSession* sessionPtr = sessions;
-    while( sessionPtr != NULL )
-        sessionPtr = sessionPtr->next;
-
     //assuming pre-allocated folder name and server ip
-    sessionPtr = malloc(sizeof(struct fsSession));
+    struct fsSession* sessionPtr = malloc(sizeof(struct fsSession));
     sessionPtr->serverIp = srvIpOrDomName;
     sessionPtr->serverPort = srvPort;
     sessionPtr->localFolderName = localFolderName;
@@ -64,15 +96,15 @@ int fsMount(const char *srvIpOrDomName,
     sessionPtr->sessionId = *( (int*) ret.return_val );
     free( ret.return_val );
 
-    if(sessions == NULL)
-        sessions = sessionPtr;
+    appendSession( sessionPtr );
+
+    sessionPtr = sessions;
 
     return 0;
 }
 
 int fsUnmount(const char *localFolderName) {
     struct fsSession* sessionPtr = sessions;
-    struct fsSession* prevSessionPtr = NULL;
     return_type ret;
     int retVal = -1;
 
@@ -81,7 +113,6 @@ int fsUnmount(const char *localFolderName) {
             retVal = 0;
             break;
         }
-        prevSessionPtr = sessionPtr;
         sessionPtr = sessionPtr->next;
     }
 
@@ -113,11 +144,7 @@ int fsUnmount(const char *localFolderName) {
     }
 
     //delete session from session list
-    if( prevSessionPtr == NULL ) {
-        sessions = sessionPtr->next;
-    } else {
-        prevSessionPtr->next = sessionPtr->next;
-    }
+    removeSession( sessionPtr );
     free(sessionPtr);
 
     return retVal;

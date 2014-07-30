@@ -39,14 +39,51 @@ struct mountSession* sessions = NULL;
 struct folderLock* folderLocks = NULL;
 struct fileLock* fileLocks = NULL;
 
-int findSession( int clientSessionId, struct mountSession** sessionPtr,
-        struct mountSession** prevSessionPtr)
+void appendMountSession(struct mountSession* newSession)
+{
+    if( sessions == NULL ) {
+        sessions = newSession;
+        return;
+    }
+
+    struct mountSession** sessionPtr = &sessions;
+
+    while( (*sessionPtr)->next != NULL ) {
+        sessionPtr = &((*sessionPtr)->next);
+    }
+
+    (*sessionPtr)->next = newSession;
+}
+
+void removeMountSession(struct mountSession* removeSession)
+{
+    if( sessions == removeSession ) {
+        sessions = sessions->next;
+        return;
+    }
+
+    struct mountSession** sessionPtr = &sessions;
+    struct mountSession** prevSessionPtr = NULL;
+
+    while( *sessionPtr != NULL ) {
+        if( *sessionPtr == removeSession )
+            break;
+        prevSessionPtr = sessionPtr;
+        sessionPtr = &((*sessionPtr)->next);
+    }
+
+    if( *sessionPtr = NULL )
+        return;
+
+    (*prevSessionPtr)->next = *sessionPtr;
+}
+
+int findSession(int clientSessionId, struct mountSession** sessionPtr)
 {
     while( *sessionPtr != NULL ) {
         if( (*sessionPtr)->sessionId == clientSessionId ) {
             break;
         }
-        *prevSessionPtr = *sessionPtr;
         *sessionPtr = (*sessionPtr)->next;
     }
 
@@ -74,44 +111,6 @@ char* replaceClientLocalFolder(const char* clientDir,
 
     return serverDir;
 }
-
-//server side function prototype
-/*
-return_type FUNCTION_NAME(const int nparams, arg_type* argList)
-{
-    if( nparams != NUM_PARAM ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
-        return ret;
-    }
-
-    //INITIALIZE PARAMS TO LOCAL VARIABLES
-    int clientSessionId = *( (int*) argList->arg_val );
-    char* requestDir = (char*) argList->next->arg_val;
-
-
-    //FIND SESSION
-    struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
-
-    //session not found
-    if( findSession(clientSessionId, &sessionPtr, &preSessionPtr) == -1 ) {
-        ret.return_val = NULL;
-        ret.return_size = 0;
-        return ret;
-    }
-
-    //FUNCTION MAIN BODY
-
-
-    //CONSTRUCT RETURN TYPE
-    ret.return_size = sizeof(int);
-    ret.return_val = malloc( sizeof(int) );
-    *( (int*)ret.return_val ) = 0;
-
-    return ret;
-}
-*/
 
 return_type r_fsMount(const int nparams, arg_type* argList)
 {
@@ -149,8 +148,8 @@ return_type r_fsMount(const int nparams, arg_type* argList)
     ret.return_val = malloc( sizeof(int) );
     *( (int*)ret.return_val ) = sessionPtr->sessionId;
 
-    if(sessions == NULL)
-        sessions = sessionPtr;
+    appendMountSession(sessionPtr);
+    sessionPtr = sessions;
 
     return ret;
 }
@@ -166,21 +165,16 @@ return_type r_fsUnmount(const int nparams, arg_type* argList)
     int clientSessionId = *( (int*) argList->arg_val );
 
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
     }
 
     //remove session from list
-    if( prevSessionPtr == NULL ) {
-        sessions = sessionPtr->next;
-    } else {
-        prevSessionPtr->next = sessionPtr->next;
-    }
+    removeMountSession(sessionPtr);
     free(sessionPtr->clientFolderName);
     free(sessionPtr);
 
@@ -203,10 +197,9 @@ return_type r_fsOpenDir(const int nparams, arg_type* argList)
     char* requestDir = (char*) argList->next->arg_val;
 
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
@@ -275,10 +268,9 @@ return_type r_fsCloseDir(const int nparams, arg_type* argList)
 
     //FIND SESSION
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
@@ -346,10 +338,9 @@ return_type r_fsReadDir(const int nparams, arg_type* argList)
 
     //FIND SESSION
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         printf("readDir session not found\n");
         ret.return_val = NULL;
         ret.return_size = 0;
@@ -410,10 +401,9 @@ return_type r_fsOpenFile(const int nparams, arg_type* argList)
     int flags = *( (int*) argList->next->next->arg_val );
 
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         printf("fsOpen session not found\n");
         ret.return_val = NULL;
         ret.return_size = 0;
@@ -503,10 +493,9 @@ return_type r_fsCloseFile(const int nparams, arg_type* argList)
 
     //FIND SESSION
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
@@ -576,10 +565,9 @@ return_type r_fsRead(const int nparams, arg_type* argList)
 
     //FIND SESSION
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
@@ -644,10 +632,9 @@ return_type r_fsWrite(const int nparams, arg_type* argList)
 
     //FIND SESSION
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;
@@ -704,10 +691,9 @@ return_type r_fsRemove(const int nparams, arg_type* argList)
 
     //FIND SESSION
     struct mountSession* sessionPtr = sessions;
-    struct mountSession* prevSessionPtr = NULL;
 
     //session not found
-    if( findSession(clientSessionId, &sessionPtr, &prevSessionPtr) == -1 ) {
+    if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         ret.return_val = NULL;
         ret.return_size = 0;
         return ret;

@@ -69,6 +69,84 @@ void removeSession(struct fsSession* removeSession)
     (*prevSessionPtr)->next = *sessionPtr;
 }
 
+void appendDir(struct fsDirList* head, struct fsDirList* newItem)
+{
+    if( head == NULL ) {
+        head = newItem;
+        return;
+    }
+
+    struct fsDirList** ptr = &head;
+
+    while( (*ptr)->next != NULL ) {
+        ptr = &((*ptr)->next);
+    }
+
+    (*ptr)->next = newItem;
+}
+
+void removeDir(struct fsDirList* head, struct fsDirList* removeItem)
+{
+    if( head == removeItem ) {
+        head = head->next;
+        return;
+    }
+
+    struct fsDirList** ptr = &head;
+    struct fsDirList** prevPtr = NULL;
+
+    while( *ptr != NULL ) {
+        if( *ptr == removeItem )
+            break;
+        prevPtr = ptr;
+        ptr = &((*ptr)->next);
+    }
+
+    if( *ptr = NULL )
+        return;
+
+    (*prevPtr)->next = *ptr;
+}
+
+void appendFile(struct fileList* head, struct fileList* newItem)
+{
+    if( head == NULL ) {
+        head = newItem;
+        return;
+    }
+
+    struct fileList** ptr = &head;
+
+    while( (*ptr)->next != NULL ) {
+        ptr = &((*ptr)->next);
+    }
+
+    (*ptr)->next = newItem;
+}
+
+void removeFile(struct fileList* head, struct fileList* removeItem)
+{
+    if( head == removeItem ) {
+        head = head->next;
+        return;
+    }
+
+    struct fileList** ptr = &head;
+    struct fileList** prevPtr = NULL;
+
+    while( *ptr != NULL ) {
+        if( *ptr == removeItem )
+            break;
+        prevPtr = ptr;
+        ptr = &((*ptr)->next);
+    }
+
+    if( *ptr = NULL )
+        return;
+
+    (*prevPtr)->next = *ptr;
+}
+
 int fsMount(const char *srvIpOrDomName,
             const unsigned int srvPort,
             const char *localFolderName)
@@ -182,24 +260,15 @@ FSDIR* fsOpenDir(const char *folderName) {
     free(ret.return_val);
 
     //store open directory to the open session
-    struct fsDirList* fsDirPtr = sessionPtr->fsDirs;
-    while( fsDirPtr != NULL ) {
-        fsDirPtr = fsDirPtr->next;
-    }
-
-    fsDirPtr = malloc( sizeof(struct fsDirList) );
+    struct fsDirList* fsDirPtr = malloc( sizeof(struct fsDirList) );
     fsDirPtr->value = retVal;
-
-    if(sessionPtr->fsDirs == NULL)
-        sessionPtr->fsDirs = fsDirPtr;
-
+	appendDir( sessionPtr->fsDirs, fsDirPtr );
 
     return retVal;
 }
 
 int fsCloseDir(FSDIR *folder) {
     struct fsSession* sessionPtr = sessions;
-    struct fsDirList* prevfsDirPtr = NULL;
     struct fsDirList* fsDirPtr = NULL;
     bool found = false;
 
@@ -207,7 +276,6 @@ int fsCloseDir(FSDIR *folder) {
     while( sessionPtr != NULL ) {
         fsDirPtr = sessionPtr->fsDirs;
         while( fsDirPtr != NULL ) {
-            prevfsDirPtr = fsDirPtr;
             if( fsDirPtr->value == folder ) {
                 found = true;
                 break;
@@ -245,14 +313,9 @@ int fsCloseDir(FSDIR *folder) {
         errno = retVal;
         return -1;
     }
-    printf("list operations\n");
 
     //remove the folder from the session folder list
-    if( prevfsDirPtr == NULL ) {
-        sessionPtr->fsDirs = fsDirPtr->next;
-    } else {
-        prevfsDirPtr->next = fsDirPtr->next;
-    }
+	removeDir(sessionPtr->fsDirs, fsDirPtr);
     free(fsDirPtr);
 
     return 0;
@@ -381,30 +444,22 @@ int fsOpen(const char *fname, int mode) {
     }
 
     //store open directory to the open session
-    struct fileList* filePtr = sessionPtr->files;
-    while( filePtr != NULL ) {
-        filePtr = filePtr->next;
-    }
-
-    filePtr = malloc( sizeof(struct fileList) );
+    struct fileList* filePtr = malloc( sizeof(struct fileList) );
     filePtr->fd = retVal;
-    if( sessionPtr->files == NULL )
-        sessionPtr->files = filePtr;
+	appendFile(sessionPtr->files, filePtr);
 
     return retVal;
 }
 
 int fsClose(int fd) {
-    struct fsSession* sessionPtr = sessions;
-    struct fileList* prevFilePtr = NULL;
+    struct fsSession* sessionPtr = sessions;\
     struct fileList* filePtr = NULL;
     bool found = false;
 
     //try to find the exisiting opened file
     while( sessionPtr != NULL ) {
         filePtr = sessionPtr->files;
-        while( filePtr != NULL ) {
-            prevFilePtr = filePtr;
+        while( filePtr != NULL ) {\
             if( filePtr->fd == fd ) {
                 found = true;
                 break;
@@ -443,11 +498,7 @@ int fsClose(int fd) {
     }
 
     //remove the file from the session file list
-    if( prevFilePtr == NULL ) {
-        sessionPtr->files = filePtr->next;
-    } else {
-        prevFilePtr->next = filePtr->next;
-    }
+	removeFile(sessionPtr->files, filePtr);
     free(filePtr);
 
     return 0;

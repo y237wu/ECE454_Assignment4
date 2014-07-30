@@ -78,6 +78,84 @@ void removeMountSession(struct mountSession* removeSession)
     (*prevSessionPtr)->next = *sessionPtr;
 }
 
+void appendFolderLock(struct folderLock* newItem)
+{
+    if( folderLocks == NULL ) {
+        folderLocks = newItem;
+        return;
+    }
+
+    struct folderLock** ptr = &folderLocks;
+
+    while( (*ptr)->next != NULL ) {
+        ptr = &((*ptr)->next);
+    }
+
+    (*ptr)->next = newItem;
+}
+
+void removeFolderLock(struct folderLock* removeItem)
+{
+    if( folderLocks == removeItem ) {
+        folderLocks = folderLocks->next;
+        return;
+    }
+
+    struct folderLock** ptr = &folderLocks;
+    struct folderLock** prevPtr = NULL;
+
+    while( *ptr != NULL ) {
+        if( *ptr == removeItem )
+            break;
+        prevPtr = ptr;
+        ptr = &((*ptr)->next);
+    }
+
+    if( *ptr = NULL )
+        return;
+
+    (*prevPtr)->next = *ptr;
+}
+
+void appendFileLock(struct fileLock* newItem)
+{
+    if( fileLocks == NULL ) {
+        fileLocks = newItem;
+        return;
+    }
+
+    struct fileLock** ptr = &fileLocks;
+
+    while( (*ptr)->next != NULL ) {
+        ptr = &((*ptr)->next);
+    }
+
+    (*ptr)->next = newItem;
+}
+
+void removeFileLock(struct fileLock* removeItem)
+{
+    if( fileLocks == removeItem ) {
+        fileLocks = fileLocks->next;
+        return;
+    }
+
+    struct fileLock** ptr = &fileLocks;
+    struct fileLock** prevPtr = NULL;
+
+    while( *ptr != NULL ) {
+        if( *ptr == removeItem )
+            break;
+        prevPtr = ptr;
+        ptr = &((*ptr)->next);
+    }
+
+    if( *ptr = NULL )
+        return;
+
+    (*prevPtr)->next = *ptr;
+}
+
 int findSession(int clientSessionId, struct mountSession** sessionPtr)
 {
     while( *sessionPtr != NULL ) {
@@ -112,7 +190,7 @@ char* replaceClientLocalFolder(const char* clientDir,
     return serverDir;
 }
 
-return_type r_fsMount(const int nparams, arg_type* argList)
+return_type rpc_fsMount(const int nparams, arg_type* argList)
 {
 
     if( nparams != 1 ) {
@@ -154,7 +232,7 @@ return_type r_fsMount(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsUnmount(const int nparams, arg_type* argList)
+return_type rpc_fsUnmount(const int nparams, arg_type* argList)
 {
     if( nparams != 1 ) {
         ret.return_val = NULL;
@@ -185,7 +263,7 @@ return_type r_fsUnmount(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsOpenDir(const int nparams, arg_type* argList)
+return_type rpc_fsOpenDir(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
         ret.return_val = NULL;
@@ -226,7 +304,6 @@ return_type r_fsOpenDir(const int nparams, arg_type* argList)
 
     if( opened == false ) {
         DIR* dir = opendir(serverFolder);
-        printf("dir %d\n", dir);
 
         //error opening directory
         if( dir == NULL ) {
@@ -238,12 +315,10 @@ return_type r_fsOpenDir(const int nparams, arg_type* argList)
         lockPtr = malloc(sizeof(struct folderLock));
         lockPtr->sessionId = sessionPtr->sessionId;
         lockPtr->dir = dir;
-        printf("lockPtr->dir %d\n", lockPtr->dir);
         strcpy(lockPtr->dname, serverFolder);
         lockPtr->next = NULL;
 
-        if( folderLocks == NULL )
-            folderLocks = lockPtr;
+        appendFolderLock(lockPtr);
     }
 
     ret.return_size = sizeof(DIR*);
@@ -253,7 +328,7 @@ return_type r_fsOpenDir(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsCloseDir(const int nparams, arg_type* argList)
+return_type rpc_fsCloseDir(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
         ret.return_val = NULL;
@@ -264,7 +339,6 @@ return_type r_fsCloseDir(const int nparams, arg_type* argList)
     //INITIALIZE PARAMS TO LOCAL VARIABLES
     int clientSessionId = *( (int*) argList->arg_val );
     DIR* requestDir = *( (DIR**) argList->next->arg_val );
-
 
     //FIND SESSION
     struct mountSession* sessionPtr = sessions;
@@ -277,7 +351,6 @@ return_type r_fsCloseDir(const int nparams, arg_type* argList)
     }
 
     //find the opened folder
-    struct folderLock* prevLockPtr = NULL;
     struct folderLock* lockPtr = folderLocks;
 
     while( lockPtr != NULL ) {
@@ -285,7 +358,6 @@ return_type r_fsCloseDir(const int nparams, arg_type* argList)
                 lockPtr->dir == requestDir ) {
             break;
         }
-        prevLockPtr = lockPtr;
         lockPtr = lockPtr->next;
     }
 
@@ -301,11 +373,7 @@ return_type r_fsCloseDir(const int nparams, arg_type* argList)
     int closeDirRet =  closedir(requestDir);
 
     //discard lock even if closedir failed because the dir* itself is wrong
-    if( prevLockPtr == NULL ) {
-        folderLocks = lockPtr->next;
-    } else {
-        prevLockPtr->next = lockPtr->next;
-    }
+	removeFolderLock(lockPtr);
     free(lockPtr);
 
     //close dir failed and we want to return errorno
@@ -324,7 +392,7 @@ return_type r_fsCloseDir(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsReadDir(const int nparams, arg_type* argList)
+return_type rpc_fsReadDir(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
         ret.return_val = NULL;
@@ -350,7 +418,6 @@ return_type r_fsReadDir(const int nparams, arg_type* argList)
     //find opened folder for the session
     struct folderLock* lockPtr = folderLocks;
     while( lockPtr != NULL ) {
-        printf("sessionId %d dir %d\n", lockPtr->sessionId, lockPtr->dir);
         if( lockPtr->sessionId == sessionPtr->sessionId &&
                 lockPtr->dir == requestDir ) {
             break;
@@ -388,7 +455,7 @@ return_type r_fsReadDir(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsOpenFile(const int nparams, arg_type* argList)
+return_type rpc_fsOpenFile(const int nparams, arg_type* argList)
 {
     if( nparams != 3 ) {
         ret.return_val = NULL;
@@ -458,8 +525,7 @@ return_type r_fsOpenFile(const int nparams, arg_type* argList)
             strcpy(lockPtr->fname, serverFile);
             lockPtr->next = NULL;
 
-            if( fileLocks == NULL )
-                fileLocks = lockPtr;
+            appendFileLock(lockPtr);
         } else {
             //file is locked and not available
             ret.return_size = sizeof(int);
@@ -478,7 +544,7 @@ return_type r_fsOpenFile(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsCloseFile(const int nparams, arg_type* argList)
+return_type rpc_fsCloseFile(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
         ret.return_val = NULL;
@@ -490,11 +556,8 @@ return_type r_fsCloseFile(const int nparams, arg_type* argList)
     int clientSessionId = *( (int*) argList->arg_val );
     int requestFile = *( (int*) argList->next->arg_val );
 
-
     //FIND SESSION
     struct mountSession* sessionPtr = sessions;
-
-    //session not found
     if( findSession(clientSessionId, &sessionPtr) == -1 ) {
         ret.return_val = NULL;
         ret.return_size = 0;
@@ -502,7 +565,6 @@ return_type r_fsCloseFile(const int nparams, arg_type* argList)
     }
 
     //find the opened file
-    struct fileLock* prevLockPtr = NULL;
     struct fileLock* lockPtr = fileLocks;
 
     while( lockPtr != NULL ) {
@@ -510,7 +572,6 @@ return_type r_fsCloseFile(const int nparams, arg_type* argList)
                 lockPtr->fd == requestFile ) {
             break;
         }
-        prevLockPtr = lockPtr;
         lockPtr = lockPtr->next;
     }
 
@@ -526,11 +587,7 @@ return_type r_fsCloseFile(const int nparams, arg_type* argList)
     int closeFileRet =  close(requestFile);
 
     //discard lock even if close failed because the fd itself is wrong
-    if( prevLockPtr == NULL ) {
-        fileLocks = lockPtr->next;
-    } else {
-        prevLockPtr->next = lockPtr->next;
-    }
+	removeFileLock(lockPtr);
     free(lockPtr);
 
     //close dir failed and we want to return errorno
@@ -549,7 +606,7 @@ return_type r_fsCloseFile(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsRead(const int nparams, arg_type* argList)
+return_type rpc_fsRead(const int nparams, arg_type* argList)
 {
     if( nparams != 3 ) {
         ret.return_val = NULL;
@@ -598,7 +655,6 @@ return_type r_fsRead(const int nparams, arg_type* argList)
     void* buffer = malloc(readCount);
     memset(buffer, 0, readCount);
     int readSuccess = read( requestFile, buffer, readCount );
-    printf("read buffer %s\n", buffer);
 
     if( readSuccess == -1 ) {
         free(buffer);
@@ -615,7 +671,7 @@ return_type r_fsRead(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsWrite(const int nparams, arg_type* argList)
+return_type rpc_fsWrite(const int nparams, arg_type* argList)
 {
     if( nparams != 4 ) {
         ret.return_val = NULL;
@@ -627,7 +683,6 @@ return_type r_fsWrite(const int nparams, arg_type* argList)
     int clientSessionId = *( (int*) argList->arg_val );
     int requestFile = *( (int*) argList->next->arg_val );
     void* writeBuffer = argList->next->next->arg_val;
-    printf("writeBuffer %s\n", writeBuffer);
     int writeCount = *( (int*) argList->next->next->next->arg_val );
 
     //FIND SESSION
@@ -677,7 +732,7 @@ return_type r_fsWrite(const int nparams, arg_type* argList)
     return ret;
 }
 
-return_type r_fsRemove(const int nparams, arg_type* argList)
+return_type rpc_fsRemove(const int nparams, arg_type* argList)
 {
     if( nparams != 2 ) {
         ret.return_val = NULL;
@@ -795,24 +850,20 @@ int main(int argc, void* argv[])
 
     serverFolderName = (char*) argv[1];
 
-    //set up file system
-    //browse_dir( folderName, 0 );
-
-    register_procedure("fsMount", 1, r_fsMount);
-    register_procedure("fsUnmount", 1, r_fsUnmount);
-    register_procedure("fsOpenDir", 2, r_fsOpenDir);
-    register_procedure("fsCloseDir", 2, r_fsCloseDir);
-    register_procedure("fsReadDir", 2, r_fsReadDir);
-    register_procedure("fsOpenFile", 3, r_fsOpenFile);
-    register_procedure("fsCloseFile", 2, r_fsCloseFile);
-    register_procedure("fsRead", 3, r_fsRead);
-    register_procedure("fsWrite", 4, r_fsWrite);
-    register_procedure("fsRemove", 2, r_fsRemove);
+    register_procedure("fsMount", 1, rpc_fsMount);
+    register_procedure("fsUnmount", 1, rpc_fsUnmount);
+    register_procedure("fsOpenDir", 2, rpc_fsOpenDir);
+    register_procedure("fsCloseDir", 2, rpc_fsCloseDir);
+    register_procedure("fsReadDir", 2, rpc_fsReadDir);
+    register_procedure("fsOpenFile", 3, rpc_fsOpenFile);
+    register_procedure("fsCloseFile", 2, rpc_fsCloseFile);
+    register_procedure("fsRead", 3, rpc_fsRead);
+    register_procedure("fsWrite", 4, rpc_fsWrite);
+    register_procedure("fsRemove", 2, rpc_fsRemove);
 
     //launch server
-    launch_server();
-
     //receive calls from client and send back response accordingly
+    launch_server();
 
     return 0;
 }

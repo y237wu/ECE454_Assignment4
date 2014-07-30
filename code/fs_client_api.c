@@ -686,12 +686,8 @@ int fsRemove(const char *name) {
 
         if( retVal == 0 ) {
             return 0;
-        } else if( retVal == EAGAIN ) {
+        } else if( retVal == -1 ) {
             sleep(5);
-        } else if( retVal != EINVAL ) {
-            errno = retVal;
-            perror("fsRemove:");
-            exit(-1);
         } else {
             sessionPtr = sessionPtr->next;
         }

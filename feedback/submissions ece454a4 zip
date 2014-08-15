@@ -1,0 +1,47 @@
+Archive:  ece454a4.zip
+   creating: ece454a4/
+  inflating: ece454a4/ece454_fs.h    
+  inflating: ece454a4/fsOtherIncludes.h  
+  inflating: ece454a4/fs_client_api.c  
+  inflating: ece454a4/fs_server.c    
+  inflating: ece454a4/Makefile       
+  inflating: ece454a4/Readme.txt     
+   creating: ece454a4/simplified_rpc/
+  inflating: ece454a4/simplified_rpc/client_stub.c  
+  inflating: ece454a4/simplified_rpc/ece454rpc_types.h  
+  inflating: ece454a4/simplified_rpc/helper.c  
+  inflating: ece454a4/simplified_rpc/Makefile  
+  inflating: ece454a4/simplified_rpc/mybind.c  
+  inflating: ece454a4/simplified_rpc/sample_client_app.c  
+  inflating: ece454a4/simplified_rpc/sample_server_app.c  
+  inflating: ece454a4/simplified_rpc/server_stub.c  
+rm -rf a.out *.o core *.a fs_client server
+gcc -c fs_server.c -o fs_server.o
+cd simplified_rpc && make all
+make[1]: Entering directory `/home/y237wu/4A/ece454/ECE454_Assignment4/work/ece454a4/simplified_rpc'
+gcc -c server_stub.c -o server_stub.o
+server_stub.c: In function ‘printRegisteredProcedures’:
+server_stub.c:46: warning: cast from pointer to integer of different size
+gcc -c client_stub.c -o client_stub.o
+gcc -c helper.c -o helper.o
+gcc -c mybind.c -o mybind.o
+ar r libstubs.a server_stub.o client_stub.o helper.o mybind.o
+ar: creating libstubs.a
+gcc -c sample_client_app.c -o sample_client_app.o
+gcc sample_client_app.o -L. -lstubs -o sample_client_app
+gcc -c sample_server_app.c -o sample_server_app.o
+gcc sample_server_app.o -L. -lstubs -o sample_server_app
+make[1]: Leaving directory `/home/y237wu/4A/ece454/ECE454_Assignment4/work/ece454a4/simplified_rpc'
+gcc fs_server.o -L./simplified_rpc -lstubs -o server 
+cd simplified_rpc && make all
+make[1]: Entering directory `/home/y237wu/4A/ece454/ECE454_Assignment4/work/ece454a4/simplified_rpc'
+make[1]: Nothing to be done for `all'.
+make[1]: Leaving directory `/home/y237wu/4A/ece454/ECE454_Assignment4/work/ece454a4/simplified_rpc'
+gcc -c fs_client_api.c -o fs_client_api.o
+ar r libclient-api.a fs_client_api.o simplified_rpc/client_stub.o simplified_rpc/helper.o simplified_rpc/mybind.o
+ar: creating libclient-api.a
+./unpack.sh: line 19: ./fsServer: No such file or directory
+Passed test 1...
+
+ip=, port=
+getaddrinfo: Success

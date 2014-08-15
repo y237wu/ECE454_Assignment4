@@ -244,7 +244,6 @@ void launch_server() {
     }
 
     printf("%s %u\n", inet_ntoa(a.sin_addr), ntohs(a.sin_port));
-	fflush(stdout);
     
     if(listen(s, 0) < 0) {
 	perror("listen"); exit(0);

@@ -202,6 +202,7 @@ return_type rpc_fsMount(const int nparams, arg_type* argList)
     const char* clientFolderName = (const char*) argList->arg_val;
     struct mountSession* sessionPtr = sessions;
 
+	/*
     while( sessionPtr != NULL ) {
         //duplicate local folder name, rejected
         if( strcmp(sessionPtr->clientFolderName, clientFolderName) == 0 ) {
@@ -212,6 +213,7 @@ return_type rpc_fsMount(const int nparams, arg_type* argList)
         }
         sessionPtr = sessionPtr->next;
     }
+	*/
 
     sessionPtr = malloc(sizeof(struct mountSession));
     sessionPtr->clientFolderName = malloc(strlen(clientFolderName)+1);

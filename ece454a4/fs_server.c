@@ -876,6 +876,7 @@ int main(int argc, void* argv[])
         printf("Server <host folder name>\n");
         return -1;
     }
+	setvbuf(stdout, NULL, _IONBF, 0);
 
     serverFolderName = (char*) argv[1];
 	DIR* dir = opendir(serverFolderName);
